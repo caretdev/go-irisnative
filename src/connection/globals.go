@@ -113,3 +113,29 @@ func (c *Connection) GlobalNext(global string, ind *string, subs ...interface{})
 
 	return
 }
+
+func (c *Connection) GlobalPrev(global string, ind *string, subs ...interface{}) (hasNext bool, err error) {
+	msg := NewMessage(GLOBAL_ORDER)
+	msg.Set(global)
+	msg.Set(len(subs) + 1)
+	for _, sub := range subs {
+		msg.Set(sub)
+	}
+	msg.Set(*ind)
+	msg.Set(7)
+
+	if _, err = c.conn.Write(msg.Dump(c.count())); err != nil {
+		return
+	}
+
+	if msg, err = ReadMessage(c.conn); err != nil {
+		return
+	}
+
+	var result string
+	msg.Get(&result)
+	*ind = result
+	hasNext = result != ""
+
+	return
+}

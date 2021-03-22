@@ -174,7 +174,7 @@ func BuildAll() { //revive:disable-line
 
 // Test runs backend tests.
 func Test() error {
-	if err := sh.RunV("go", "test", "./src/..."); err != nil {
+	if err := sh.RunV("go", "test", "./src/...", "-v"); err != nil {
 		return err
 	}
 	return nil
@@ -262,6 +262,11 @@ func checkLinuxPtraceScope() error {
 }
 
 // Run runs executable
-func Run() error {
-	return sh.RunV("go", "run", "src/main.go")
+func Run(what string) error {
+	mainPath := filepath.Join("example", what, "main.go")
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		fmt.Printf("Example `%s` not found\n", what)
+		return nil
+	}
+	return sh.RunV("go", "run", mainPath)
 }
