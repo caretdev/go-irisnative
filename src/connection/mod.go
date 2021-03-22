@@ -2,10 +2,11 @@ package connection
 
 import (
 	"errors"
+	"fmt"
 	"net"
 )
 
-const VERSION_PROTOCOL uint16 = 57
+const VERSION_PROTOCOL uint16 = 61
 
 type Connection struct {
 	conn         *net.TCPConn
@@ -39,6 +40,8 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 	if err = connection.connect(namespace, login, password); err != nil {
 		return
 	}
+
+  fmt.Println(connection.version, connection.info)
 
 	return
 }
@@ -104,7 +107,7 @@ func (c *Connection) connect(namespace, login, password string) (err error) {
 	msg.Set("go-machine")    // machine name
 	msg.Set("libirisnative") // application name
 	msg.Set("")
-	msg.Set("|||||")
+	msg.Set("go")
 	msg.Set("")
 	msg.Set(1)
 	msg.Set(0)

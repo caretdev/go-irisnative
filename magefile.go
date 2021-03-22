@@ -263,5 +263,5 @@ func checkLinuxPtraceScope() error {
 
 // Run runs executable
 func Run() error {
-	return sh.RunV("go", "run", "src/main.go")
+	return sh.RunV("go", "run", "main.go")
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/caretdev/go-irisnative/src/iris"
 )
 
 type ListItem struct {
@@ -134,6 +136,10 @@ func NewListItem(value interface{}) ListItem {
 		data = v
 	case nil:
 		isNull = true
+  case iris.Oref:
+    itemType = 25
+    byRef = true
+    data = []byte(v)
 	default:
 		fmt.Printf("unknown: %#v %T\n", v, v)
 		itemType = 0
@@ -183,7 +189,7 @@ func (li *ListItem) asString() (value string, err error) {
 		return
 	}
 	switch li.itemType {
-	case 1, 2:
+	case 1, 2, 25:
 		value = li.getString()
 	case 4:
 		value = fmt.Sprint(getPosInt(li.data))
@@ -304,6 +310,10 @@ func (li *ListItem) Get(value interface{}) (err error) {
 		*v = float32(temp)
 	case *string:
 		*v, err = li.asString()
+	case *iris.Oref:
+    var temp string
+		temp, err = li.asString()
+    *v = iris.Oref(temp)
 	default:
 		err = errors.New("not implemented")
 	}

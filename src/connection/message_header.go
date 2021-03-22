@@ -21,14 +21,20 @@ const (
 	HANDSHAKE  MessageType = "\x48\x53"
 	DISCONNECT MessageType = "\x44\x43"
 
-	GLOBAL_SET   MessageType = "\x42\xc2"
 	GLOBAL_GET   MessageType = "\x41\xc2"
-	GLOBAL_DATA  MessageType = "\x49\xc2"
+	GLOBAL_SET   MessageType = "\x42\xc2"
 	GLOBAL_KILL  MessageType = "\x43\xc2"
 	GLOBAL_ORDER MessageType = "\x45\xc2"
+	GLOBAL_DATA  MessageType = "\x49\xc2"
 
 	CLASSMETHOD_VALUE MessageType = "\x4b\xc2"
 	CLASSMETHOD_VOID  MessageType = "\x4c\xc2"
+
+	METHOD_VALUE MessageType = "\x5b\xc2"
+	METHOD_VOID  MessageType = "\x5c\xc2"
+
+	PROPERTY_GET  MessageType = "\x5d\xc2"
+	PROPERTY_SET MessageType = "\x5e\xc2"
 
 	DIRECT_QUERY MessageType = "\x44\x51"
 )
