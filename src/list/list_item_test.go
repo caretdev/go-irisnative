@@ -55,7 +55,8 @@ var tests []TestItem = []TestItem{
 
 func TestListItem(t *testing.T) {
 	for _, v := range tests {
-		var listItem, offset = GetListItem(v.dump, 0)
+		var offset uint = 0
+		var listItem = GetListItem(v.dump, &offset)
 		if tempDump := listItem.Dump(); !reflect.DeepEqual(v.dump, tempDump) {
 			t.Error("Not equal", v.dump, tempDump, listItem)
 		}

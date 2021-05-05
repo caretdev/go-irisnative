@@ -36,7 +36,11 @@ const (
 	PROPERTY_GET  MessageType = "\x5d\xc2"
 	PROPERTY_SET MessageType = "\x5e\xc2"
 
-	DIRECT_QUERY MessageType = "\x44\x51"
+	DIRECT_QUERY MessageType = "DQ"
+
+	MULTIPLE_RESULT_SETS_FETCH_DATA MessageType = "MD"
+	GET_MORE_RESULTS MessageType = "MR"
+	FETCH_DATA MessageType = "FD"
 )
 
 type MessageHeader struct {

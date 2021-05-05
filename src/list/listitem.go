@@ -62,11 +62,12 @@ func (listItem *ListItem) Dump() []byte {
 	return dump
 }
 
-func GetListItem(buffer []byte, offset uint) (ListItem, uint) {
+func GetListItem(buffer []byte, ooffset *uint) ListItem {
 	var byRef = false
 	var isNull = false
 	var size uint16 = 0
 	var itemType byte = 0
+	offset := *ooffset
 
 	switch buffer[offset] {
 	case 0:
@@ -94,8 +95,8 @@ func GetListItem(buffer []byte, offset uint) (ListItem, uint) {
 		data = buffer[offset : offset+uint(size)]
 	}
 	offset += uint(size)
-
-	return ListItem{size, itemType, data, isNull, byRef}, offset
+	*ooffset = offset
+	return ListItem{size, itemType, data, isNull, byRef}
 }
 
 func NewListItem(value interface{}) ListItem {
@@ -217,6 +218,10 @@ func (li *ListItem) asInt() (value int, err error) {
 		value = getPosInt(li.data)
 	case 5:
 		value = getNegInt(li.data)
+	case 6:
+		value = int(getPosFloat(li.data))
+	case 7:
+		value = int(getNegFloat(li.data))
 	default:
 		err = errors.New("not implemented")
 	}
@@ -240,6 +245,10 @@ func (li *ListItem) asFloat64() (value float64, err error) {
 		value = float64(getPosInt(li.data))
 	case 5:
 		value = float64(getNegInt(li.data))
+	case 6:
+		value = getPosFloat(li.data)
+	case 7:
+		value = getNegFloat(li.data)
 	default:
 		err = errors.New("not implemented")
 	}
@@ -310,6 +319,8 @@ func (li *ListItem) Get(value interface{}) (err error) {
 		*v = float32(temp)
 	case *string:
 		*v, err = li.asString()
+	case *[]byte:
+		*v = li.data
 	case *iris.Oref:
     var temp string
 		temp, err = li.asString()

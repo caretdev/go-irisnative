@@ -41,7 +41,7 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 		return
 	}
 
-  fmt.Println(connection.version, connection.info)
+	fmt.Println(connection.version, connection.info)
 
 	return
 }
@@ -106,12 +106,12 @@ func (c *Connection) connect(namespace, login, password string) (err error) {
 	msg.Set("go")            // machine user name
 	msg.Set("go-machine")    // machine name
 	msg.Set("libirisnative") // application name
-	msg.Set("")
-	msg.Set("go")
-	msg.Set("")
-	msg.Set(1)
-	msg.Set(0)
-	msg.Set(1)
+	msg.Set("")              // ?
+	msg.Set("go")            // SharedMemoryFlag?
+	msg.Set("")              // EventClass
+	msg.Set(1)               // AutoCommit ? 1 : 2
+	msg.Set(0)               // IsolationLevel
+	msg.Set(3)               // FeatureOption
 
 	_, err = c.conn.Write(msg.Dump(c.count()))
 	if err != nil {
