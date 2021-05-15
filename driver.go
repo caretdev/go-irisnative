@@ -45,7 +45,7 @@ func init() {
 }
 
 func Open(dsn string) (_ driver.Conn, err error) {
-	log.Println("Open")
+	log.Print("Open: ", dsn)
 	c, err := NewConnector(dsn)
 	if err != nil {
 		return nil, err

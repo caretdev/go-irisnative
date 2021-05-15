@@ -2,6 +2,7 @@ package connection
 
 import (
 	"io"
+	"log"
 
 	"github.com/caretdev/go-irisnative/src/list"
 )
@@ -204,6 +205,7 @@ func writeParameters(msg *Message, args ...interface{}) {
 }
 
 func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSet, error) {
+	log.Print("DirectQuery", sqlText)
 	msg := NewMessage(DIRECT_QUERY)
 	msg.SetSQLText(sqlText)
 	writeParameters(&msg, args...)
@@ -218,6 +220,7 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("%#v", msg)
 	statementFeature := statementFeature(&msg)
 	columns := getColumns(&msg, statementFeature)
 	parameterInfo((&msg))
