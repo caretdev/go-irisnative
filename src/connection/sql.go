@@ -189,19 +189,26 @@ func parameterInfo(msg *Message) {
 	msg.Get(&flag)
 }
 
+func writeParameters(msg *Message, args ...interface{}) {
+	msg.Set(len(args))
+	for range args {
+		msg.Set(99)
+		msg.Set(4)
+	}
+
+	msg.Set(1) // parameterSets
+	msg.Set(len(args))
+	for _, arg := range args {
+		msg.Set(arg)
+	}
+}
+
 func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSet, error) {
 	msg := NewMessage(DIRECT_QUERY)
 	msg.SetSQLText(sqlText)
-	// additionalParameterInfo
-	msg.Set(0)
-	// parameterSets
-	msg.Set(1)
-	// paremeters count
-	msg.Set(0)
-	// Query timeout
-	msg.Set(0)
-	// Max rows
-	msg.Set(0)
+	writeParameters(&msg, args...)
+	msg.Set(0) // Query timeout
+	msg.Set(0) // Max rows
 
 	_, err := c.conn.Write(msg.Dump(c.count()))
 	if err != nil {

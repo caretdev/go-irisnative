@@ -174,7 +174,7 @@ func BuildAll() { //revive:disable-line
 
 // Test runs backend tests.
 func Test() error {
-	if err := sh.RunV("go", "test", "./src/..."); err != nil {
+	if err := sh.RunV("go", "test", "./src/...", "-v"); err != nil {
 		return err
 	}
 	return nil

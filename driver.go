@@ -12,8 +12,6 @@ import (
 
 	"github.com/caretdev/go-irisnative/src/connection"
 
-	_ "context"
-	_ "fmt"
 	_ "io"
 	_ "math"
 	_ "reflect"
@@ -57,36 +55,6 @@ func Open(dsn string) (_ driver.Conn, err error) {
 
 type conn struct {
 	c connection.Connection
-}
-
-type format int
-
-type rows struct {
-	cn       *conn
-	rs       *connection.ResultSet
-	done     bool
-}
-
-type noRows struct{}
-
-var emptyRows noRows
-
-var _ driver.Result = noRows{}
-
-func (noRows) LastInsertId() (int64, error) {
-	return 0, errNoLastInsertID
-}
-
-func (noRows) RowsAffected() (int64, error) {
-	return 0, errNoRowsAffected
-}
-
-type stmt struct {
-	cn         *conn
-	name       string
-	colFmtData []byte
-	// paramTyps  []oid.Oid
-	closed bool
 }
 
 func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
@@ -133,6 +101,7 @@ func (cn *conn) Commit() (err error) {
 }
 
 func (cn *conn) Rollback() (err error) {
+	log.Println("Rollback")
 	return nil
 }
 
@@ -142,62 +111,20 @@ func (cn *conn) Exec(query string, args []driver.Value) (res driver.Result, err 
 	return res, nil
 }
 
-func (st *stmt) Exec(v []driver.Value) (res driver.Result, err error) {
-	log.Println("StmtExec")
-	res = emptyRows
-	return res, nil
-}
-
-func (st *stmt) Close() (err error) {
-	log.Println("StmtClose")
-	return nil
-}
-
-func (st *stmt) NumInput() int {
-	return -1
-}
-
 func (cn *conn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	log.Println("ConnQuery: " + query)
+	log.Println("ConnQuery: ", query)
+	log.Println("ConnQueryArgs: ", args)
 
-	rs, _ := cn.c.DirectQuery(query)
+	parameters := make([]interface{}, len(args))
+	for i, a := range args {
+		parameters[i] = a
+	}
+	rs, _ := cn.c.DirectQuery(query, parameters...)
 
 	return &rows{
 		cn: cn,
 		rs: rs,
 	}, nil
-}
-
-func (r *rows) Close() error {
-	log.Println("RowsClose")
-	return nil
-}
-
-func (r *rows) Columns() []string {
-	log.Println("Columns")
-	columns := r.rs.Columns()
-	colNames := make([]string, len(columns))
-	for k, c := range columns {
-		colNames[k] = c.Name()
-	}
-	return colNames
-}
-
-func (r *rows) Next(dest []driver.Value) (err error) {
-	// log.Println("Next")
-	row, err := r.rs.Next()
-	if err != nil {
-		return err
-	}
-	for i := range dest {
-		dest[i] = row[i]
-	}
-	return nil
-}
-
-func (st *stmt) Query(v []driver.Value) (r driver.Rows, err error) {
-	log.Println("StmtQuery")
-	return nil, nil
 }
 
 func parseOpts(name string, o values) error {

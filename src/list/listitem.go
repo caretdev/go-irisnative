@@ -50,10 +50,11 @@ func (listItem *ListItem) Dump() []byte {
 		return []byte{1}
 	}
 	var dump = make([]byte, 0)
-	if listItem.size > 255 {
+	if listItem.size > 253 {
+		size := listItem.size + 1
 		dump = append(dump, 0)
-		dump = append(dump, byte(listItem.size&0xff))
-		dump = append(dump, byte((listItem.size<<8)&0xff))
+		dump = append(dump, byte((size)&0xff))
+		dump = append(dump, byte((size>>8)&0xff))
 	} else {
 		dump = append(dump, byte(listItem.size+2))
 	}
@@ -137,10 +138,10 @@ func NewListItem(value interface{}) ListItem {
 		data = v
 	case nil:
 		isNull = true
-  case iris.Oref:
-    itemType = 25
-    byRef = true
-    data = []byte(v)
+	case iris.Oref:
+		itemType = 25
+		byRef = true
+		data = []byte(v)
 	default:
 		fmt.Printf("unknown: %#v %T\n", v, v)
 		itemType = 0
@@ -322,9 +323,9 @@ func (li *ListItem) Get(value interface{}) (err error) {
 	case *[]byte:
 		*v = li.data
 	case *iris.Oref:
-    var temp string
+		var temp string
 		temp, err = li.asString()
-    *v = iris.Oref(temp)
+		*v = iris.Oref(temp)
 	default:
 		err = errors.New("not implemented")
 	}

@@ -65,3 +65,25 @@ func TestListItem(t *testing.T) {
 		}
 	}
 }
+
+var longString = map[int][]byte{
+	253: {0xff, 0x01},
+	254: {0x00, 0xff, 0x00, 0x01},
+	255: {0x00, 0x00, 0x01, 0x01},
+	256: {0x00, 0x01, 0x01, 0x01},
+	512: {0x00, 0x01, 0x02, 0x01},
+}
+
+func TestLongListItem(t *testing.T) {
+	for l, v := range longString {
+		temp := make([]byte, l)
+		for i := range temp {
+			temp[i] = 255
+		}
+		li := NewListItem(temp)
+		tempDump := li.Dump()[:len(v)]
+		if !reflect.DeepEqual(v, tempDump) {
+			t.Error("Not equal", l, tempDump, v)
+		}
+	}
+}
