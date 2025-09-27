@@ -65,23 +65,11 @@ func NewConnector(dsn string) (*Connector, error) {
 	}
 	o["client_encoding"] = "UTF8"
 
-	// If a user is not provided by any other means, the last
-	// resort is to use the current operating system provided user
-	// name.
-	if _, ok := o["user"]; !ok {
-		u, err := userCurrent()
-		if err != nil {
-			return nil, err
-		}
-		o["user"] = u
-	}
-
 	return &Connector{opts: o, /*dialer: defaultDialer{}*/}, nil
 }
 
 // isUTF8 returns whether name is a fuzzy variation of the string "UTF-8".
 func isUTF8(name string) bool {
-	// Recognize all sorts of silly things as "UTF-8", like Postgres does
 	s := strings.Map(alnumLowerASCII, name)
 	return s == "utf8" || s == "unicode"
 }

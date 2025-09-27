@@ -6,11 +6,8 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"unicode"
-
-	"github.com/caretdev/go-irisnative/src/connection"
 
 	_ "io"
 	_ "math"
@@ -19,6 +16,8 @@ import (
 	_ "strings"
 	_ "time"
 	_ "unsafe"
+
+	"github.com/caretdev/go-irisnative/src/connection"
 )
 
 var (
@@ -45,7 +44,6 @@ func init() {
 }
 
 func Open(dsn string) (_ driver.Conn, err error) {
-	log.Print("Open: ", dsn)
 	c, err := NewConnector(dsn)
 	if err != nil {
 		return nil, err
@@ -58,7 +56,6 @@ type conn struct {
 }
 
 func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
-	log.Println("Begin")
 	o := make(values)
 	for k, v := range c.opts {
 		o[k] = v
@@ -79,52 +76,57 @@ func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
 }
 
 func (cn *conn) Begin() (_ driver.Tx, err error) {
-	log.Println("Begin")
+	cn.c.DirectUpdate("START TRANSACTION")
 	return cn, nil
 }
 
 func (cn *conn) Close() (err error) {
-	log.Println("ConnClose")
 	cn.c.Disconnect()
 	return nil
 }
 
-func (cn *conn) Prepare(q string) (_ driver.Stmt, err error) {
-	log.Println("Prepare")
-	st := &stmt{cn: cn, name: ""}
-	return st, nil
+func (cn *conn) Prepare(q string) (st driver.Stmt, err error) {
+	return cn.c.Prepare(q)
 }
 
 func (cn *conn) Commit() (err error) {
-	log.Println("Commit")
+	cn.c.Commit()
 	return nil
 }
 
 func (cn *conn) Rollback() (err error) {
-	log.Println("Rollback")
+	cn.c.Rollback()
 	return nil
 }
 
-func (cn *conn) Exec(query string, args []driver.Value) (res driver.Result, err error) {
-	log.Println("ConnExec: " + query)
-	res = emptyRows
-	return res, nil
-}
-
-func (cn *conn) Query(query string, args []driver.Value) (driver.Rows, error) {
-	log.Println("ConnQuery: ", query)
-	log.Println("ConnQueryArgs: ", args)
-
+func (cn *conn) Exec(query string, args []driver.NamedValue) (res driver.Result, err error) {
 	parameters := make([]interface{}, len(args))
 	for i, a := range args {
 		parameters[i] = a
 	}
-	rs, _ := cn.c.DirectQuery(query, parameters...)
+	_, err = cn.c.DirectUpdate(query, parameters...)
+	if err != nil {
+		return nil, err
+	}
+	// res = emptyRows
+	return res, nil
+}
 
-	return &rows{
-		cn: cn,
-		rs: rs,
-	}, nil
+func (cn *conn) Query(query string, args []driver.NamedValue) (rows driver.Rows, err error) {
+	parameters := make([]interface{}, len(args))
+	for i, a := range args {
+		parameters[i] = a
+	}
+	// var rs *connection.ResultSet
+	_, err = cn.c.Query(query, parameters...)
+	if err != nil {
+		return nil, err
+	}
+	// rows = &connection.Rows{
+	// 	cn: cn,
+	// 	rs: rs,
+	// }
+	return
 }
 
 func parseOpts(name string, o values) error {

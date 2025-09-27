@@ -1,4 +1,4 @@
-package intersystems
+package connection
 
 import (
 	"os"

@@ -7,14 +7,43 @@ import (
 	"strconv"
 
 	"github.com/caretdev/go-irisnative/src/iris"
+	"github.com/shopspring/decimal"
+)
+
+type ListItemType byte
+
+const (
+	LISTITEM_STRING   ListItemType = 0x01
+	LISTITEM_UNICODE  ListItemType = 0x02
+	LISTITEM_POSINT   ListItemType = 0x04
+	LISTITEM_NEGINT   ListItemType = 0x05
+	LISTITEM_POSFLOAT ListItemType = 0x06
+	LISTITEM_NEGFLOAT ListItemType = 0x07
+	LISTITEM_OREF     ListItemType = 0x19
 )
 
 type ListItem struct {
 	size     uint16
-	itemType byte
+	itemType ListItemType
 	data     []byte
 	isNull   bool
 	byRef    bool
+}
+
+func (li *ListItem) IsNull() bool {
+	return li.isNull
+}
+
+func (li *ListItem) IsString() bool {
+	return li.itemType == LISTITEM_STRING || li.itemType == LISTITEM_UNICODE
+}
+
+func (li *ListItem) IsEmpty() bool {
+	return li.itemType == LISTITEM_STRING && len(li.data) == 0
+}
+
+func (li *ListItem) Type() ListItemType {
+	return li.itemType
 }
 
 var scale = []float64{
@@ -58,7 +87,7 @@ func (listItem *ListItem) Dump() []byte {
 	} else {
 		dump = append(dump, byte(listItem.size+2))
 	}
-	dump = append(dump, listItem.itemType)
+	dump = append(dump, byte(listItem.itemType))
 	dump = append(dump, listItem.data...)
 	return dump
 }
@@ -97,11 +126,11 @@ func GetListItem(buffer []byte, ooffset *uint) ListItem {
 	}
 	offset += uint(size)
 	*ooffset = offset
-	return ListItem{size, itemType, data, isNull, byRef}
+	return ListItem{size, ListItemType(itemType), data, isNull, byRef}
 }
 
 func NewListItem(value interface{}) ListItem {
-	var itemType byte = 0
+	var itemType ListItemType = 0
 	var size uint16 = 0
 	var data = make([]byte, 0)
 	var isNull = false
@@ -112,39 +141,121 @@ func NewListItem(value interface{}) ListItem {
 		var listItem = NewListItem(*v)
 		listItem.byRef = true
 		return listItem
-	case int:
+	case int, int8, int16, int32, int64:
+		var ival int64
+		switch i := v.(type) {
+		case int:
+			ival = int64(i)
+		case int8:
+			ival = int64(i)
+		case int16:
+			ival = int64(i)
+		case int32:
+			ival = int64(i)
+		case int64:
+			ival = i
+		}
 		itemType = 4
 		var base = 0
-		var temp = v
-		if v < 0 {
+		var temp = ival
+		if ival < 0 {
 			itemType = 5
 			base = 0xff
-			temp = v*-1 - 1
+			temp = ival*-1 - 1
 		}
 		for temp > 0 {
-			data = append(data, byte((temp^base)&0xff))
+			data = append(data, byte((temp^int64(base))&0xff))
 			temp = temp >> 8
 		}
-	case float64:
+	case uint, uint8, uint16, uint32, uint64:
+		var uval uint64
+		switch u := v.(type) {
+		case uint:
+			uval = uint64(u)
+		case uint8:
+			uval = uint64(u)
+		case uint16:
+			uval = uint64(u)
+		case uint32:
+			uval = uint64(u)
+		case uint64:
+			uval = u
+		}
+		itemType = 4
+		temp := uval
+		for temp > 0 {
+			data = append(data, byte(temp&0xff))
+			temp = temp >> 8
+		}
+	case float64, float32:
+		var d decimal.Decimal
+		switch f := v.(type) {
+		case float32:
+			d = decimal.NewFromFloat32(f)
+		case float64:
+			d = decimal.NewFromFloat(f)
+		}
+		scaleSize := 256 - d.Exponent()*-1
+		ival := d.Coefficient().Int64()
 		itemType = 6
-		if v < 0 {
+		if ival < 0 {
 			itemType = 7
+		}
+		data = append(data, byte(scaleSize))
+		var base = 0
+		var temp = ival
+		if ival < 0 {
+			base = 0xff
+			temp = ival*-1 - 1
+		}
+		for temp > 0 {
+			data = append(data, byte((temp^int64(base))&0xff))
+			temp = temp >> 8
+		}
+	case bool:
+		itemType = 4
+		if v {
+			data = []byte{0x1}
+		} else {
+			data = []byte{0x0}
 		}
 	case string:
 		itemType = 1
-		data = []byte(v)
+		var unicodeBytes []byte
+		for _, r := range(v) {
+			if r > 255 {
+				itemType = 2
+				var temp = r
+				// append(unicodeBytes)
+				for temp > 0 {
+					unicodeBytes = append(unicodeBytes, byte((temp)&0xff))
+					temp = temp >> 8
+				}
+			} else {
+				unicodeBytes = append(unicodeBytes, byte((r)&0xff))
+				unicodeBytes = append(unicodeBytes, byte(0))
+			}
+		}
+		if itemType == 2 {
+			data = unicodeBytes
+		} else {
+			data = []byte(v)
+		}
 	case []byte:
 		itemType = 1
 		data = v
 	case nil:
 		isNull = true
+		// itemType = 1
+		// data = []byte("")
 	case iris.Oref:
 		itemType = 25
 		byRef = true
 		data = []byte(v)
 	default:
 		fmt.Printf("unknown: %#v %T\n", v, v)
-		itemType = 0
+		itemType = 1
+		data = []byte(fmt.Sprintf("%v", v))
 	}
 	size = uint16(len(data))
 	return ListItem{
@@ -157,7 +268,15 @@ func NewListItem(value interface{}) ListItem {
 }
 
 func (li *ListItem) getString() string {
-	return string(li.data)
+	if li.itemType == LISTITEM_UNICODE {
+		var val string = ""
+		for i := 0; i < len(li.data); i += 2 {
+			val += string(rune(getPosInt(li.data[i:i+2])))
+		}
+		return val
+	} else {
+		return string(li.data)
+	}
 }
 
 func getPosInt(data []byte) int {
@@ -266,6 +385,10 @@ func (v *AnyType) Int() int {
 
 func (li *ListItem) GetAny() AnyType {
 	return AnyType(*li)
+}
+
+func (li *ListItem) DataLength() int {
+	return len(li.data)
 }
 
 func (li *ListItem) Get(value interface{}) (err error) {

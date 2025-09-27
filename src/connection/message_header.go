@@ -33,14 +33,23 @@ const (
 	METHOD_VALUE MessageType = "\x5b\xc2"
 	METHOD_VOID  MessageType = "\x5c\xc2"
 
-	PROPERTY_GET  MessageType = "\x5d\xc2"
+	PROPERTY_GET MessageType = "\x5d\xc2"
 	PROPERTY_SET MessageType = "\x5e\xc2"
 
-	DIRECT_QUERY MessageType = "DQ"
+	DIRECT_QUERY            MessageType = "DQ"
+	PREPARED_QUERY          MessageType = "PQ"
+	DIRECT_UPDATE           MessageType = "DU"
+	PREPARED_UPDATE         MessageType = "PU"
+	PREPARE                 MessageType = "PP"
+	GET_AUTO_GENERATED_KEYS MessageType = "GG"
+
+	COMMIT   MessageType = "TC"
+	ROLLBACK MessageType = "TR"
 
 	MULTIPLE_RESULT_SETS_FETCH_DATA MessageType = "MD"
-	GET_MORE_RESULTS MessageType = "MR"
-	FETCH_DATA MessageType = "FD"
+	GET_MORE_RESULTS                MessageType = "MR"
+	FETCH_DATA                      MessageType = "FD"
+	GET_SERVER_ERROR                MessageType = "OE"
 )
 
 type MessageHeader struct {
@@ -66,10 +75,10 @@ func (mh MessageHeader) GetLength() uint32 {
 	return getUint32(mh.header[0:])
 }
 
-func (mh *MessageHeader) SetCount(length uint32) {
-	setUint32(mh.header[4:], 1)
+func (mh *MessageHeader) SetCount(cnt uint32) {
+	setUint32(mh.header[4:], cnt)
 }
 
-func (mh *MessageHeader) SetStatementId(length uint32) {
-	setUint32(mh.header[8:], 1)
+func (mh *MessageHeader) SetStatementId(statementId uint32) {
+	setUint32(mh.header[8:], statementId)
 }
