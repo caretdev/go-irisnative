@@ -16,6 +16,7 @@ type Connection struct {
 	version        uint16
 	info           string
 	featureOptions uint
+	TX             bool
 }
 
 var ErrCouldNotDetectUsername = errors.New("intersystems: Could not detect default username. Please provide one explicitly")
@@ -119,11 +120,11 @@ const (
 )
 
 func (c *Connection) IsOptionFastInsert() bool {
-	return c.featureOptions & uint(OptionFastInsert) == uint(OptionFastInsert)
+	return c.featureOptions&uint(OptionFastInsert) == uint(OptionFastInsert)
 }
 
 func (c *Connection) IsOptionFastSelect() bool {
-	return c.featureOptions & uint(OptionFastSelect) == uint(OptionFastSelect)
+	return c.featureOptions&uint(OptionFastSelect) == uint(OptionFastSelect)
 }
 
 func (c *Connection) connect(namespace, login, password string) (err error) {
@@ -188,14 +189,13 @@ func (c *Connection) connect(namespace, login, password string) (err error) {
 	return
 }
 
-func systemUser() (string, error){
+func systemUser() (string, error) {
 	u, err := userCurrent()
 	if err != nil {
 		return "", err
 	}
 	return u, nil
 }
-
 
 func (c *Connection) Commit() (err error) {
 	msg := NewMessage(COMMIT)

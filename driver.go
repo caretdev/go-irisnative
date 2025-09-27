@@ -24,6 +24,8 @@ var (
 	ErrCouldNotDetectUsername = errors.New("intersystems: Could not detect default username. Please provide one explicitly")
 	errNoRowsAffected         = errors.New("no RowsAffected available after the empty statement")
 	errNoLastInsertID         = errors.New("no LastInsertId available after the empty statement")
+	errBeginTx                = errors.New("could not begin transaction")
+	errMultipleTx             = errors.New("multiple transactions")
 )
 
 var (
@@ -41,6 +43,7 @@ func (d Driver) Open(name string) (driver.Conn, error) {
 
 func init() {
 	sql.Register("intersystems", &Driver{})
+	sql.Register("iris", &Driver{})
 }
 
 func Open(dsn string) (_ driver.Conn, err error) {
@@ -75,7 +78,14 @@ func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
 	return cn, nil
 }
 
-func (cn *conn) Begin() (_ driver.Tx, err error) {
+func (cn *conn) Begin() (driver.Tx, error) {
+	cn.c.DirectUpdate("START TRANSACTION")
+	return cn, nil
+}
+
+// BeginTx starts and returns a new transaction.
+// It implements the driver.ConnBeginTx interface.
+func (cn *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	cn.c.DirectUpdate("START TRANSACTION")
 	return cn, nil
 }
@@ -108,7 +118,6 @@ func (cn *conn) Exec(query string, args []driver.NamedValue) (res driver.Result,
 	if err != nil {
 		return nil, err
 	}
-	// res = emptyRows
 	return res, nil
 }
 
@@ -123,7 +132,7 @@ func (cn *conn) Query(query string, args []driver.NamedValue) (rows driver.Rows,
 		return nil, err
 	}
 	// rows = &connection.Rows{
-	// 	cn: cn,
+	// 	cn: cn.c,
 	// 	rs: rs,
 	// }
 	return
