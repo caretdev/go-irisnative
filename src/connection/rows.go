@@ -44,7 +44,6 @@ func (r Result) LastInsertId() (lastId int64, err error) {
 }
 
 func (r Result) RowsAffected() (int64, error) {
-	// fmt.Printf("RowsAffected: %d\n", r.affected)
 	return r.affected, nil
 }
 

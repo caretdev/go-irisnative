@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"database/sql/driver"
 	"errors"
 	"net"
 )
@@ -16,10 +17,15 @@ type Connection struct {
 	version        uint16
 	info           string
 	featureOptions uint
-	TX             bool
+	tx             bool
 }
 
-var ErrCouldNotDetectUsername = errors.New("intersystems: Could not detect default username. Please provide one explicitly")
+var (
+	ErrCouldNotDetectUsername = errors.New("intersystems: Could not detect default username. Please provide one explicitly")
+	errBeginTx                = errors.New("could not begin transaction")
+	errMultipleTx             = errors.New("multiple transactions")
+	errReadOnlyTxNotSupported = errors.New("read-only transactions are not supported")
+)
 
 func Connect(addr string, namespace, login, password string) (connection Connection, err error) {
 
@@ -221,4 +227,18 @@ func (c *Connection) Rollback() (err error) {
 		return
 	}
 	return
+}
+
+func (c *Connection) BeginTx(opts driver.TxOptions) (driver.Tx, error) {
+	if c.tx {
+		return nil, errors.Join(errBeginTx, errMultipleTx)
+	}
+
+	if opts.ReadOnly {
+		return nil, errors.Join(errBeginTx, errReadOnlyTxNotSupported)
+	}
+
+	c.DirectUpdate("START TRANSACTION")
+	c.tx = true
+	return &tx{c}, nil
 }

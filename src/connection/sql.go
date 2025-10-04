@@ -186,7 +186,10 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 			var strval string
 			li.Get(&strval)
 			result, err = time.Parse(timeLaylout, strval)
-			return
+			if err == nil {
+				return
+			}
+			err = nil
 		}
 		var value int64
 		li.Get(&value)
@@ -202,7 +205,6 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 		// var value []uint8
 		var value string
 		li.Get(&value)
-		fmt.Printf("VARBINARY: %#v\n", value)
 	case TYPE_TIMESTAMP:
 		var strval string
 		li.Get(&strval)
@@ -395,8 +397,8 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	msg.header.SetStatementId(statementId)
 	msg.SetSQLText(sqlText)
 	writeParameters(&msg, args...)
-	msg.Set(10) // Query timeout
-	msg.Set(0)  // Max rows
+	msg.Set(10)  // Query timeout
+	msg.Set(200) // Max rows
 
 	_, err := c.conn.Write(msg.Dump(c.count()))
 	if err != nil {
@@ -546,7 +548,6 @@ func (c *Connection) DirectUpdate(sqlText string, args ...interface{}) (*Result,
 					msg.Set(batchSize)
 					for j := 0; j < batchSize; j++ {
 						var idx = (k * batchSize) + j
-						fmt.Printf("arg: %d:%d:%d\n", k, j, idx)
 						msg.Set(toODBC(args[idx]))
 					}
 				}
@@ -569,6 +570,7 @@ func (c *Connection) DirectUpdate(sqlText string, args ...interface{}) (*Result,
 		}
 		msg, err = ReadMessage(c.conn)
 		if err != nil {
+			// fmt.Println("DirectUpdate:Readmessage: ", err)
 			return nil, err
 		}
 		sqlCode := int16(msg.GetStatus())
@@ -655,7 +657,6 @@ func (c *Connection) getParameterInfo(msg *Message, optFastInsert bool) (addToCa
 			}
 			var val string
 			li.Get(&val)
-			fmt.Printf("li: %#v\n", val)
 			defaults = append(defaults, val)
 		}
 	}

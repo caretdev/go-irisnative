@@ -5,11 +5,11 @@ type tx struct {
 }
 
 func (t *tx) Commit() error {
-	if t.c == nil || !t.c.TX {
+	if t.c == nil || !t.c.tx {
 		panic("database/sql/driver: misuse of driver: extra Commit")
 	}
 
-	t.c.TX = false
+	t.c.tx = false
 	err := t.c.Commit()
 	t.c = nil
 
@@ -17,11 +17,11 @@ func (t *tx) Commit() error {
 }
 
 func (t *tx) Rollback() error {
-	if t.c == nil || !t.c.TX {
+	if t.c == nil || !t.c.tx {
 		panic("database/sql/driver: misuse of driver: extra Rollback")
 	}
 
-	t.c.TX = false
+	t.c.tx = false
 	err := t.c.Rollback()
 	t.c = nil
 

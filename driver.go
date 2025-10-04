@@ -22,10 +22,6 @@ import (
 
 var (
 	ErrCouldNotDetectUsername = errors.New("intersystems: Could not detect default username. Please provide one explicitly")
-	errNoRowsAffected         = errors.New("no RowsAffected available after the empty statement")
-	errNoLastInsertID         = errors.New("no LastInsertId available after the empty statement")
-	errBeginTx                = errors.New("could not begin transaction")
-	errMultipleTx             = errors.New("multiple transactions")
 )
 
 var (
@@ -55,7 +51,8 @@ func Open(dsn string) (_ driver.Conn, err error) {
 }
 
 type conn struct {
-	c connection.Connection
+	c  connection.Connection
+	tx bool
 }
 
 func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
@@ -79,15 +76,11 @@ func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
 }
 
 func (cn *conn) Begin() (driver.Tx, error) {
-	cn.c.DirectUpdate("START TRANSACTION")
-	return cn, nil
+	return cn.c.BeginTx(driver.TxOptions{})
 }
 
-// BeginTx starts and returns a new transaction.
-// It implements the driver.ConnBeginTx interface.
 func (cn *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	cn.c.DirectUpdate("START TRANSACTION")
-	return cn, nil
+	return cn.c.BeginTx(opts)
 }
 
 func (cn *conn) Close() (err error) {
@@ -99,12 +92,20 @@ func (cn *conn) Prepare(q string) (st driver.Stmt, err error) {
 	return cn.c.Prepare(q)
 }
 
-func (cn *conn) Commit() (err error) {
+func (cn *conn) Commit() error {
+	if !cn.tx {
+		panic("transaction already closed")
+	}
+	cn.tx = false
 	cn.c.Commit()
 	return nil
 }
 
-func (cn *conn) Rollback() (err error) {
+func (cn *conn) Rollback() error {
+	if !cn.tx {
+		panic("transaction already closed")
+	}
+	cn.tx = false
 	cn.c.Rollback()
 	return nil
 }
