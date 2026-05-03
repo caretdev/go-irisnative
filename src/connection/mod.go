@@ -9,15 +9,16 @@ import (
 const VERSION_PROTOCOL uint16 = 69
 
 type Connection struct {
-	conn           *net.TCPConn
-	messageCount   uint32
-	statement      uint32
-	unicode        bool
-	locale         string
-	version        uint16
-	info           string
-	featureOptions uint
-	tx             bool
+	conn            *net.TCPConn
+	messageCount    uint32
+	statement       uint32
+	unicode         bool
+	locale          string
+	version         uint16
+	info            string
+	featureOptions  uint
+	tx              bool
+	maxRowsPerFetch int
 }
 
 var (
@@ -40,7 +41,8 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 	}
 
 	connection = Connection{
-		conn: conn,
+		conn:            conn,
+		maxRowsPerFetch: DefaultMaxRowsPerFetch,
 	}
 
 	if err = connection.handshake(); err != nil {
@@ -54,6 +56,12 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 	// fmt.Println(connection.version, connection.info)
 
 	return
+}
+
+func (c *Connection) SetMaxRowsPerFetch(rows int) {
+	if rows > 0 {
+		c.maxRowsPerFetch = rows
+	}
 }
 
 func (c *Connection) Disconnect() {

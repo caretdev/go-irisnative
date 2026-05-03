@@ -35,6 +35,9 @@ func TestFromODBC(t *testing.T) {
 	assert.Equal(t, false, mustFromODBC(BIT, list.NewListItem(false)))
 	assert.Equal(t, true, mustFromODBC(BIT, list.NewListItem(true)))
 	assert.Equal(t, "test", mustFromODBC(VARCHAR, list.NewListItem("test")))
+	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", mustFromODBC(GUID, list.NewListItem("550e8400-e29b-41d4-a716-446655440000")))
+	assert.Equal(t, nil, mustFromODBC(GUID, list.NewListItem(nil)))
+	assert.Equal(t, nil, mustFromODBC(GUID, list.NewListItem("")))
 	assert.Equal(t,
 		time.Date(2025, time.September, 16, 10, 20, 30, 123456000, time.UTC).Local(),
 		mustFromODBC(TIMESTAMP_POSIX, list.NewListItem(1154679522636970432)),

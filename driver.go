@@ -64,6 +64,16 @@ func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set maxRowsPerFetch if specified in DSN
+	if maxRows, ok := o["max_rows"]; ok {
+		var rows int
+		_, err = fmt.Sscanf(maxRows, "%d", &rows)
+		if err == nil && rows > 0 {
+			cn.c.SetMaxRowsPerFetch(rows)
+		}
+	}
+
 	return cn, nil
 }
 

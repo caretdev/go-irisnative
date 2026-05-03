@@ -46,12 +46,39 @@ const (
 	COMMIT   MessageType = "TC"
 	ROLLBACK MessageType = "TR"
 
+	// Stored procedure operations
+	DIRECT_STORED_PROCEDURE        MessageType = "DS"
+	PREPARE_STORED_PROCEDURE       MessageType = "SP"
+	STORED_PROCEDURE_UPDATE_EXECUTE MessageType = "SU"
+	STORED_PROCEDURE_QUERY_EXECUTE MessageType = "SQ"
+	STORED_PROCEDURE_FETCH_DATA    MessageType = "SF"
+
+	// Stream operations
+	GET_STREAM_SIZE    MessageType = "SS"
+	RETRIEVE_STREAM    MessageType = "RS"
+	OPEN_STREAM        MessageType = "OS"
+	READ_STREAM        MessageType = "JS"
+	READ_STREAM_ODBC   MessageType = "AS"
+	STORE_BINARY_STREAM MessageType = "SB"
+	STORE_CHARACTER_STREAM MessageType = "SM"
+	STREAM_GET_BYTES   MessageType = "GB"
+	STREAM_SET_BYTES   MessageType = "SZ"
+	STREAM_TRUNCATE    MessageType = "SX"
+	STREAM_GET_POSITION MessageType = "GP"
+	CLOSE_STREAM       MessageType = "CS"
+
+	// Transaction isolation levels
+	READ_COMMITTED    MessageType = "RC"
+	READ_UNCOMMITTED  MessageType = "RU"
+	ISOLATION_LEVEL   MessageType = "IL"
+	AUTOCOMMIT_OFF    MessageType = "AF"
+	AUTOCOMMIT_ON     MessageType = "AN"
+	TOGGLE_SYNCHRONOUS_COMMIT MessageType = "TS"
+
 	MULTIPLE_RESULT_SETS_FETCH_DATA MessageType = "MD"
 	GET_MORE_RESULTS                MessageType = "MR"
 	FETCH_DATA                      MessageType = "FD"
 	GET_SERVER_ERROR                MessageType = "OE"
-
-	READ_STREAM MessageType = "JS"
 )
 
 type MessageHeader struct {

@@ -15,6 +15,10 @@ import (
 const timeLayout = "2006-01-02 15:04:05.000000000"
 const timeLayoutShort = "2006-01-02 15:04:05"
 
+// DefaultMaxRowsPerFetch is the maximum number of rows to fetch in a single request.
+// This can be configured via the DSN parameter "max_rows".
+const DefaultMaxRowsPerFetch = 200
+
 type StatementFeature struct {
 	featureOption   int
 	msgCount        int
@@ -173,6 +177,13 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 	}
 	switch coltype {
 	case LONGVARCHAR:
+		if li.DataLength() == 0 {
+			return
+		}
+		var value string
+		li.Get(&value)
+		result = value
+	case GUID:
 		if li.DataLength() == 0 {
 			return
 		}
@@ -454,7 +465,7 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	msg.SetSQLText(sqlText)
 	writeParameters(&msg, args...)
 	msg.Set(10)  // Query timeout
-	msg.Set(200) // Max rows
+	msg.Set(c.maxRowsPerFetch) // Max rows
 
 	_, err := c.conn.Write(msg.Dump(c.count()))
 	if err != nil {
