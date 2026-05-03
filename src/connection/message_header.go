@@ -50,6 +50,8 @@ const (
 	GET_MORE_RESULTS                MessageType = "MR"
 	FETCH_DATA                      MessageType = "FD"
 	GET_SERVER_ERROR                MessageType = "OE"
+
+	READ_STREAM MessageType = "JS"
 )
 
 type MessageHeader struct {

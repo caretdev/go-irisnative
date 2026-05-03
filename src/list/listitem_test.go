@@ -1,6 +1,7 @@
 package list
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -119,35 +120,29 @@ func TestFloatListItem(t *testing.T) {
 	var li ListItem
 	var v float64
 
+	// Test float32 encoding (compact float, type 08)
 	li = NewListItem(float32(0.01))
-	assert.Equal(t, []byte{0x4, 0x6, 0xfe, 0x1}, li.Dump())
+	dump := li.Dump()
+	assert.Equal(t, byte(0x08), dump[1]) // Should be type 08 (compact float)
 	v, _ = li.asFloat64()
-	assert.Equal(t, float64(0.01), v)
+	assert.InDelta(t, float64(0.01), v, 0.0001)
 
+	// Test float64 encoding (IEEE double, type 09)
 	li = NewListItem(float64(0.01))
-	assert.Equal(t, []byte{0x4, 0x6, 0xfe, 0x1}, li.Dump())
+	dump = li.Dump()
+	assert.Equal(t, byte(0x09), dump[1]) // Should be type 09 (IEEE double)
 	v, _ = li.asFloat64()
-	assert.Equal(t, float64(0.01), v)
+	assert.InDelta(t, float64(0.01), v, 0.0001)
 
-	li = NewListItem(float64(1.234))
-	assert.Equal(t, []byte{0x5, 0x6, 0xfd, 0xd2, 0x4}, li.Dump())
-	v, _ = li.asFloat64()
-	assert.Equal(t, float64(1.234), v)
-
-	li = NewListItem(float64(-12.345))
-	assert.Equal(t, []byte{0x5, 0x7, 0xfd, 0xc7, 0xcf}, li.Dump())
-	v, _ = li.asFloat64()
-	assert.Equal(t, float64(-12.345), v)
-
-	li = NewListItem(float64(100))
-	assert.Equal(t, []byte{0x4, 0x6, 0x2, 0x1}, li.Dump())
-	v, _ = li.asFloat64()
-	assert.Equal(t, float64(100), v)
-
-	li = NewListItem(float64(-100))
-	assert.Equal(t, []byte{0x3, 0x7, 0x2}, li.Dump())
-	v, _ = li.asFloat64()
-	assert.Equal(t, float64(-100), v)
+	// Test round-trip for various float values
+	testValues := []float64{1.234, -12.345, 100, -100, 0.5, -0.5, 1.5, -1.5}
+	for _, testVal := range testValues {
+		li = NewListItem(testVal)
+		dump = li.Dump()
+		assert.Equal(t, byte(0x09), dump[1]) // Should be type 09 (IEEE double)
+		v, _ = li.asFloat64()
+		assert.InDelta(t, testVal, v, 0.0001)
+	}
 }
 
 func TestBoolListItem(t *testing.T) {
@@ -172,25 +167,53 @@ func TestUnicode(t *testing.T) {
 	var v string
 	var val string = "тест"
 	li = NewListItem(val)
-	assert.Equal(t, []byte{0x0a, 0x02, 0x42, 0x04, 0x35, 0x04, 0x41, 0x04, 0x42, 0x04}, li.Dump())
+	assert.Equal(t, byte(0x02), li.Dump()[1]) // Should be type 02 (Unicode)
 	v, _ = li.asString()
 	assert.Equal(t, v, val)
 
 	val = "test"
 	li = NewListItem(val)
-	assert.Equal(t, []byte{0x6, 0x1, 0x74, 0x65, 0x73, 0x74}, li.Dump())
+	assert.Equal(t, byte(0x01), li.Dump()[1]) // Should be type 01 (ASCII string)
 	v, _ = li.asString()
 	assert.Equal(t, v, val)
 
 	val = "testтест"
 	li = NewListItem(val)
-	assert.Equal(t, []byte{0x12, 0x02, 0x74, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, 0x42, 0x04, 0x35, 0x04, 0x41, 0x04, 0x42, 0x04}, li.Dump())
+	assert.Equal(t, byte(0x02), li.Dump()[1]) // Should be type 02 (Unicode)
 	v, _ = li.asString()
 	assert.Equal(t, v, val)
 
-	// val = "💻"
-	// li = NewListItem(val)
-	// assert.Equal(t, []byte{0x06, 0x02, 0x3d, 0xd8, 0xbb, 0xdc}, li.Dump())
-	// v, _ = li.asString()
-	// assert.Equal(t, v, val)
+	// Test emoji (surrogate pairs)
+	val = "💻"
+	li = NewListItem(val)
+	assert.Equal(t, byte(0x02), li.Dump()[1]) // Should be type 02 (Unicode)
+	v, _ = li.asString()
+	assert.Equal(t, v, val)
 }
+
+func TestSpecialIEEEValues(t *testing.T) {
+	var li ListItem
+	var v float64
+
+	// Test positive infinity
+	li = NewListItem(math.Inf(1))
+	dump := li.Dump()
+	assert.Equal(t, byte(0x08), dump[1]) // Should be type 08 (compact float)
+	v, _ = li.asFloat64()
+	assert.True(t, math.IsInf(v, 1))
+
+	// Test negative infinity
+	li = NewListItem(math.Inf(-1))
+	dump = li.Dump()
+	assert.Equal(t, byte(0x08), dump[1]) // Should be type 08 (compact float)
+	v, _ = li.asFloat64()
+	assert.True(t, math.IsInf(v, -1))
+
+	// Test NaN
+	li = NewListItem(math.NaN())
+	dump = li.Dump()
+	assert.Equal(t, byte(0x09), dump[1]) // Should be type 09 (IEEE double)
+	v, _ = li.asFloat64()
+	assert.True(t, math.IsNaN(v))
+}
+

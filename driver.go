@@ -9,14 +9,6 @@ import (
 	"net"
 	"unicode"
 
-	_ "io"
-	_ "math"
-	_ "reflect"
-	_ "strconv"
-	_ "strings"
-	_ "time"
-	_ "unsafe"
-
 	"github.com/caretdev/go-irisnative/src/connection"
 )
 
@@ -94,7 +86,7 @@ func (cn *conn) Prepare(q string) (st driver.Stmt, err error) {
 
 func (cn *conn) Commit() error {
 	if !cn.tx {
-		panic("transaction already closed")
+		return errors.New("transaction already closed")
 	}
 	cn.tx = false
 	cn.c.Commit()
@@ -103,7 +95,7 @@ func (cn *conn) Commit() error {
 
 func (cn *conn) Rollback() error {
 	if !cn.tx {
-		panic("transaction already closed")
+		return errors.New("transaction already closed")
 	}
 	cn.tx = false
 	cn.c.Rollback()

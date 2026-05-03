@@ -4,22 +4,26 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
+	"unicode/utf16"
+	"unsafe"
 
 	"github.com/caretdev/go-irisnative/src/iris"
-	"github.com/shopspring/decimal"
 )
 
 type ListItemType byte
 
 const (
-	LISTITEM_STRING   ListItemType = 0x01
-	LISTITEM_UNICODE  ListItemType = 0x02
-	LISTITEM_POSINT   ListItemType = 0x04
-	LISTITEM_NEGINT   ListItemType = 0x05
-	LISTITEM_POSFLOAT ListItemType = 0x06
-	LISTITEM_NEGFLOAT ListItemType = 0x07
-	LISTITEM_OREF     ListItemType = 0x19
+	LISTITEM_STRING     ListItemType = 0x01
+	LISTITEM_UNICODE    ListItemType = 0x02
+	LISTITEM_POSINT     ListItemType = 0x04
+	LISTITEM_NEGINT     ListItemType = 0x05
+	LISTITEM_POSDECIMAL ListItemType = 0x06
+	LISTITEM_NEGDECIMAL ListItemType = 0x07
+	LISTITEM_COMPACTFLOAT ListItemType = 0x08
+	LISTITEM_IEEEDOUBLE   ListItemType = 0x09
+	LISTITEM_OREF       ListItemType = 0x19
 )
 
 type ListItem struct {
@@ -99,12 +103,22 @@ func GetListItem(buffer []byte, ooffset *uint) ListItem {
 	var itemType byte = 0
 	offset := *ooffset
 
+	if offset >= uint(len(buffer)) {
+		return ListItem{size, ListItemType(itemType), []byte{}, true, false}
+	}
+
 	switch buffer[offset] {
 	case 0:
+		if offset+2 >= uint(len(buffer)) {
+			return ListItem{size, ListItemType(itemType), []byte{}, true, false}
+		}
 		size = uint16((buffer[offset+1] & 0xff))
 		size |= ((uint16(buffer[offset+2]) & 0xff) << 8)
 		size -= 1
 		offset += 3
+		if offset >= uint(len(buffer)) {
+			return ListItem{size, ListItemType(itemType), []byte{}, true, false}
+		}
 		itemType = buffer[offset]
 		offset += 1
 	case 1:
@@ -113,6 +127,9 @@ func GetListItem(buffer []byte, ooffset *uint) ListItem {
 	default:
 		size = uint16(buffer[offset]) - 2
 		offset += 1
+		if offset >= uint(len(buffer)) {
+			return ListItem{size, ListItemType(itemType), []byte{}, true, false}
+		}
 		itemType = buffer[offset]
 		offset += 1
 		if itemType >= 32 && itemType < 64 {
@@ -122,6 +139,9 @@ func GetListItem(buffer []byte, ooffset *uint) ListItem {
 	}
 	var data = []byte{}
 	if size > 0 {
+		if offset+uint(size) > uint(len(buffer)) {
+			return ListItem{size, ListItemType(itemType), []byte{}, true, false}
+		}
 		data = buffer[offset : offset+uint(size)]
 	}
 	offset += uint(size)
@@ -188,29 +208,48 @@ func NewListItem(value interface{}) ListItem {
 			temp = temp >> 8
 		}
 	case float64, float32:
-		var d decimal.Decimal
+		// Use binary float encoding (types 08/09) instead of decimal
 		switch f := v.(type) {
 		case float32:
-			d = decimal.NewFromFloat32(f)
+			itemType = LISTITEM_COMPACTFLOAT
+			// IEEE 754 single-precision, little-endian
+			bits := binary.LittleEndian.Uint32((*[4]byte)(unsafe.Pointer(&f))[:])
+			data = make([]byte, 4)
+			binary.LittleEndian.PutUint32(data, bits)
+			// Remove trailing zero bytes for compact encoding
+			for len(data) > 0 && data[len(data)-1] == 0 {
+				data = data[:len(data)-1]
+			}
 		case float64:
-			d = decimal.NewFromFloat(f)
-		}
-		scaleSize := 256 - d.Exponent()*-1
-		ival := d.Coefficient().Int64()
-		itemType = 6
-		if ival < 0 {
-			itemType = 7
-		}
-		data = append(data, byte(scaleSize))
-		var base = 0
-		var temp = ival
-		if ival < 0 {
-			base = 0xff
-			temp = ival*-1 - 1
-		}
-		for temp > 0 {
-			data = append(data, byte((temp^int64(base))&0xff))
-			temp = temp >> 8
+			// Check for special IEEE values
+			if math.IsNaN(f) {
+				// NaN uses type 09 with specific encoding
+				itemType = LISTITEM_IEEEDOUBLE
+				data = make([]byte, 2)
+				if math.Signbit(f) {
+					// Negative NaN: 04 09 F8 FF
+					data[0] = 0xF8
+					data[1] = 0xFF
+				} else {
+					// Positive NaN: 04 09 F8 7F
+					data[0] = 0xF8
+					data[1] = 0x7F
+				}
+			} else if math.IsInf(f, 1) {
+				// Positive Infinity: 04 08 80 7F
+				itemType = LISTITEM_COMPACTFLOAT
+				data = []byte{0x80, 0x7F}
+			} else if math.IsInf(f, -1) {
+				// Negative Infinity: 04 08 80 FF
+				itemType = LISTITEM_COMPACTFLOAT
+				data = []byte{0x80, 0xFF}
+			} else {
+				itemType = LISTITEM_IEEEDOUBLE
+				// IEEE 754 double-precision, fixed 8-byte payload, little-endian
+				bits := binary.LittleEndian.Uint64((*[8]byte)(unsafe.Pointer(&f))[:])
+				data = make([]byte, 8)
+				binary.LittleEndian.PutUint64(data, bits)
+			}
 		}
 	case bool:
 		itemType = 4
@@ -221,23 +260,21 @@ func NewListItem(value interface{}) ListItem {
 		}
 	case string:
 		itemType = 1
-		var unicodeBytes []byte
-		for _, r := range(v) {
+		for _, r := range v {
 			if r > 255 {
 				itemType = 2
-				var temp = r
-				// append(unicodeBytes)
-				for temp > 0 {
-					unicodeBytes = append(unicodeBytes, byte((temp)&0xff))
-					temp = temp >> 8
-				}
-			} else {
-				unicodeBytes = append(unicodeBytes, byte((r)&0xff))
-				unicodeBytes = append(unicodeBytes, byte(0))
+				break
 			}
 		}
 		if itemType == 2 {
-			data = unicodeBytes
+			// Encode as UTF-16LE
+			runes := []rune(v)
+			utf16Runes := utf16.Encode(runes)
+			data = make([]byte, len(utf16Runes)*2)
+			for i, r := range utf16Runes {
+				data[i*2] = byte(r & 0xff)
+				data[i*2+1] = byte((r >> 8) & 0xff)
+			}
 		} else {
 			data = []byte(v)
 		}
@@ -269,11 +306,16 @@ func NewListItem(value interface{}) ListItem {
 
 func (li *ListItem) getString() string {
 	if li.itemType == LISTITEM_UNICODE {
-		var val string = ""
-		for i := 0; i < len(li.data); i += 2 {
-			val += string(rune(getPosInt(li.data[i:i+2])))
+		// Decode UTF-16LE
+		if len(li.data)%2 != 0 {
+			return string(li.data) // Fallback for invalid data
 		}
-		return val
+		utf16Runes := make([]uint16, len(li.data)/2)
+		for i := 0; i < len(utf16Runes); i++ {
+			utf16Runes[i] = binary.LittleEndian.Uint16(li.data[i*2 : i*2+2])
+		}
+		runes := utf16.Decode(utf16Runes)
+		return string(runes)
 	} else {
 		return string(li.data)
 	}
@@ -295,12 +337,20 @@ func getNegInt(data []byte) int {
 }
 
 func getPosFloat(data []byte) float64 {
-	d := scale[int(data[0])]
+	scaleIndex := int(data[0])
+	if scaleIndex < 0 || scaleIndex >= len(scale) {
+		scaleIndex = 128 // Default to middle of array if out of bounds
+	}
+	d := scale[scaleIndex]
 	return float64(getPosInt(data[1:])) * d
 }
 
 func getNegFloat(data []byte) float64 {
-	d := scale[int(data[0])]
+	scaleIndex := int(data[0])
+	if scaleIndex < 0 || scaleIndex >= len(scale) {
+		scaleIndex = 128 // Default to middle of array if out of bounds
+	}
+	d := scale[scaleIndex]
 	return float64(getNegInt(data[1:])) * d
 }
 
@@ -320,6 +370,13 @@ func (li *ListItem) asString() (value string, err error) {
 		value = fmt.Sprint(getPosFloat(li.data))
 	case 7:
 		value = fmt.Sprint(getNegFloat(li.data))
+	case 8, 9:
+		// Binary float types - convert to string via float64
+		f, err := li.asFloat64()
+		if err != nil {
+			return "", err
+		}
+		value = fmt.Sprint(f)
 	default:
 		err = errors.New("not implemented")
 	}
@@ -369,6 +426,52 @@ func (li *ListItem) asFloat64() (value float64, err error) {
 		value = getPosFloat(li.data)
 	case 7:
 		value = getNegFloat(li.data)
+	case 8:
+		// Compact Float (IEEE 754 single-precision)
+		// Check for special IEEE values
+		if len(li.data) == 2 && li.data[0] == 0x80 {
+			if li.data[1] == 0x7F {
+				value = math.Inf(1) // Positive Infinity
+			} else if li.data[1] == 0xFF {
+				value = math.Inf(-1) // Negative Infinity
+			} else {
+				// Pad with zeros to 4 bytes if needed
+				data := make([]byte, 4)
+				copy(data, li.data)
+				bits := binary.LittleEndian.Uint32(data)
+				value = float64(math.Float32frombits(bits))
+			}
+		} else {
+			// Pad with zeros to 4 bytes if needed
+			data := make([]byte, 4)
+			copy(data, li.data)
+			bits := binary.LittleEndian.Uint32(data)
+			value = float64(math.Float32frombits(bits))
+		}
+	case 9:
+		// IEEE Double (IEEE 754 double-precision)
+		// Check for special NaN encoding
+		if len(li.data) == 2 && li.data[0] == 0xF8 {
+			if li.data[1] == 0x7F {
+				value = math.NaN()
+			} else if li.data[1] == 0xFF {
+				value = math.Copysign(math.NaN(), -1)
+			} else {
+				if len(li.data) != 8 {
+					err = errors.New("invalid IEEE double data length")
+					return
+				}
+				bits := binary.LittleEndian.Uint64(li.data)
+				value = math.Float64frombits(bits)
+			}
+		} else {
+			if len(li.data) != 8 {
+				err = errors.New("invalid IEEE double data length")
+				return
+			}
+			bits := binary.LittleEndian.Uint64(li.data)
+			value = math.Float64frombits(bits)
+		}
 	default:
 		err = errors.New("not implemented")
 	}
@@ -379,7 +482,7 @@ type AnyType ListItem
 
 func (v *AnyType) Int() int {
 	var value int
-	// ListItem(*v)
+	(*ListItem)(v).Get(&value)
 	return value
 }
 

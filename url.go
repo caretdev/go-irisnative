@@ -51,8 +51,10 @@ func ParseURL(url string) (string, error) {
 		v := u.User.Username()
 		accrue("user", v)
 
-		v, _ = u.User.Password()
-		accrue("password", v)
+		v, ok := u.User.Password()
+		if ok {
+			accrue("password", v)
+		}
 	}
 
 	if host, port, err := net.SplitHostPort(u.Host); err != nil {

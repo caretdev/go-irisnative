@@ -12,8 +12,8 @@ import (
 	"github.com/caretdev/go-irisnative/src/list"
 )
 
-const timeLaylout = "2006-01-02 15:04:05.000000000"
-const timeLayloutShort = "2006-01-02 15:04:05"
+const timeLayout = "2006-01-02 15:04:05.000000000"
+const timeLayoutShort = "2006-01-02 15:04:05"
 
 type StatementFeature struct {
 	featureOption   int
@@ -126,20 +126,44 @@ type Value interface{}
 
 // type ResultSetRow struct{}
 
-func (rs *ResultSet) fetchMoreData() bool {
+func (c *Connection) fetchStream(handle string, binary bool) (result interface{}, err error) {
+	var statementId = c.statementId()
+	msg := NewMessage(READ_STREAM)
+	msg.header.SetStatementId(statementId)
+	msg.Set(handle)
+	msg.Set(-1)
+	_, err = c.conn.Write(msg.Dump(c.count()))
+	if err != nil {
+		return
+	}
+	msg, err = ReadMessage(c.conn)
+	if err != nil {
+		return
+	}
+	var data []byte
+	msg.GetRaw(&data)
+	result = data
+	if !binary {
+		result = string(data)
+	}
+
+	return
+}
+
+func (rs *ResultSet) fetchMoreData() (bool, error) {
 	msg := NewMessage(FETCH_DATA)
 	_, err := rs.c.conn.Write(msg.Dump(rs.c.count()))
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 	msg, err = ReadMessage(rs.c.conn)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 
 	rs.data = msg.data
 	rs.offset = 0
-	return len(msg.data) > 0
+	return len(msg.data) > 0, nil
 }
 
 func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error) {
@@ -148,6 +172,13 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 		return
 	}
 	switch coltype {
+	case LONGVARCHAR:
+		if li.DataLength() == 0 {
+			return
+		}
+		var value string
+		li.Get(&value)
+		result = value
 	case VARCHAR:
 		if li.DataLength() == 0 {
 			return
@@ -185,7 +216,7 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 		if li.Type() == list.LISTITEM_STRING {
 			var strval string
 			li.Get(&strval)
-			result, err = time.Parse(timeLaylout, strval)
+			result, err = time.Parse(timeLayout, strval)
 			if err == nil {
 				return
 			}
@@ -208,11 +239,11 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 	case TYPE_TIMESTAMP:
 		var strval string
 		li.Get(&strval)
-		result, err = time.Parse(timeLayloutShort, strval)
+		result, err = time.Parse(timeLayoutShort, strval)
 	default:
 		var value string
 		li.Get(&value)
-		fmt.Printf("fromODBC: invalid type: %v - %#v - %#v", coltype, li, value)
+		// fmt.Printf("fromODBC: invalid type: %v - %#v - %#v", coltype, li, value)
 		result = value
 	}
 	return
@@ -222,8 +253,17 @@ func (rs *ResultSet) Next() ([]Value, error) {
 	if rs == nil || (rs.sqlCode != 0 && rs.sqlCode != 100) {
 		return nil, io.EOF
 	}
-	if rs.offset >= uint(len(rs.data)) && (rs.sqlCode == 100 || !rs.fetchMoreData()) {
+	if rs.offset >= uint(len(rs.data)) && rs.sqlCode == 100 {
 		return nil, io.EOF
+	}
+	if rs.offset >= uint(len(rs.data)) {
+		hasMore, err := rs.fetchMoreData()
+		if err != nil {
+			return nil, err
+		}
+		if !hasMore {
+			return nil, io.EOF
+		}
 	}
 	row := make([]Value, rs.count)
 	data := rs.data
@@ -244,32 +284,48 @@ func (rs *ResultSet) Next() ([]Value, error) {
 		rs.offset = offset
 	}
 	var err error
+	conn := rs.c
 	for i, c := range rs.columns {
 		li := vals[c.slot_position]
-		row[i], err = fromODBC(SQLTYPE(c.column_type), li)
+		value := interface{}(nil)
+		coltype := SQLTYPE(c.column_type)
+		value, err = fromODBC(coltype, li)
 		if err != nil {
 			return nil, err
 		}
+		if value != nil {
+			switch coltype {
+			case LONGVARCHAR:
+				value, err = conn.fetchStream(value.(string), false)
+			case LONGVARBINARY:
+				// value, err = conn.fetchStream(value.(string), true)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		row[i] = value
 		// fmt.Printf("col: %s: %d; %#v - %#v\n", c.name, c.column_type, row[i], li)
 	}
 	// fmt.Printf("row: %#v\n", row)
 	return row, nil
 }
 
-func (c *Connection) getErrorInfo(sqlCode int16) string {
+func (c *Connection) getErrorInfo(sqlCode int16) (string, error) {
 	msg := NewMessage(GET_SERVER_ERROR)
 	msg.Set(sqlCode)
 	_, err := c.conn.Write(msg.Dump(c.count()))
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	msg, err = ReadMessage(c.conn)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	var sqlMessage string
 	msg.Get(&sqlMessage)
-	return sqlMessage
+	return sqlMessage, nil
 }
 
 func getColumns(msg *Message, statementFeature StatementFeature) []Column {
@@ -341,7 +397,7 @@ func toODBC(value interface{}) interface{} {
 			val = 0
 		}
 	case time.Time:
-		val = v.UTC().Format(timeLaylout)
+		val = v.UTC().Format(timeLayout)
 	case int, int8, int16, int32, int64:
 		val = v
 	case float32, float64:
@@ -410,7 +466,11 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	}
 	sqlCode := int16(msg.GetStatus())
 	if sqlCode != 0 && sqlCode != 100 {
-		return nil, &SQLError{SQLCode: sqlCode, Message: c.getErrorInfo(sqlCode)}
+		msg, err := c.getErrorInfo(sqlCode)
+		if err != nil {
+			return nil, err
+		}
+		return nil, &SQLError{SQLCode: sqlCode, Message: msg}
 	}
 	statementFeature := statementFeature(&msg)
 	columns := getColumns(&msg, statementFeature)
@@ -575,7 +635,11 @@ func (c *Connection) DirectUpdate(sqlText string, args ...interface{}) (*Result,
 		}
 		sqlCode := int16(msg.GetStatus())
 		if sqlCode != 0 && sqlCode != 100 {
-			return nil, &SQLError{SQLCode: sqlCode, Message: c.getErrorInfo(sqlCode)}
+			msgStr, err := c.getErrorInfo(sqlCode)
+			if err != nil {
+				return nil, err
+			}
+			return nil, &SQLError{SQLCode: sqlCode, Message: msgStr}
 		}
 		if i == 1 {
 			if c.IsOptionFastInsert() {
@@ -671,23 +735,6 @@ type Stmt struct {
 }
 
 func (c *Connection) Prepare(query string) (*Stmt, error) {
-	// msg := NewMessage(PREPARE)
-	// msg.SetSQLText(query)
-	// msg.Set(0)
-
-	// _, err := c.conn.Write(msg.Dump(c.count()))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// msg, err = ReadMessage(c.conn)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// sqlCode := int16(msg.GetStatus())
-	// if sqlCode != 0 && sqlCode != 100 {
-	// 	return nil, &SQLError{SQLCode: sqlCode, Message: c.getErrorInfo(sqlCode)}
-	// }
-
 	st := &Stmt{cn: c, sql: query}
 	return st, nil
 }

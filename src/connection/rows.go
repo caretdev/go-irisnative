@@ -17,19 +17,6 @@ type Result struct {
 }
 
 func (r Result) LastInsertId() (lastId int64, err error) {
-	// var msg Message
-	// msg = NewMessage(GET_AUTO_GENERATED_KEYS)
-	// msg.header.SetStatementId(r.cn.statementId())
-	// _, err = r.cn.conn.Write(msg.Dump(r.cn.count()))
-	// if err != nil {
-	// 	return
-	// }
-	// msg, err = ReadMessage(r.cn.conn)
-	// if err != nil {
-	// 	return
-	// }
-	// msg.Get(&lastId)
-	// return
 	var rs *ResultSet
 	rs, err = r.cn.DirectQuery("SELECT LAST_IDENTITY()")
 	if err != nil {

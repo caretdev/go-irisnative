@@ -72,9 +72,15 @@ func (m *Message) AddRaw(value interface{}) {
 func (m *Message) GetRaw(value interface{}) error {
 	switch v := value.(type) {
 	case *uint16:
+		if m.offset+1 >= uint(len(m.data)) {
+			return fmt.Errorf("insufficient data for uint16")
+		}
 		*v = uint16(m.data[m.offset]) | (uint16(m.data[m.offset+1]) << 8)
 		m.offset += 2
 	case *bool:
+		if m.offset+1 >= uint(len(m.data)) {
+			return fmt.Errorf("insufficient data for bool")
+		}
 		*v = (uint16(m.data[m.offset]) | (uint16(m.data[m.offset+1]) << 8)) == 1
 		m.offset += 2
 	case *[]byte:

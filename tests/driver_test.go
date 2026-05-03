@@ -89,3 +89,30 @@ func TestInsert(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestStreams(t *testing.T) {
+	t.Run("with config", func(t *testing.T) {
+		var err error
+		db := openDbWrapper(t, connectionString)
+		defer closeDbWrapper(t, db)
+
+		_, err = db.Exec("create table testing_streams (ID identity, data LONGVARCHAR)")
+		require.NoError(t, err)
+
+		_, err = db.Exec("INSERT INTO testing_streams (data) VALUES ('Test')")
+		require.NoError(t, err)
+
+		var rows *sql.Rows
+		rows, err = db.Query("select id, data from testing_streams")
+		require.NoError(t, err)
+		defer rows.Close()
+
+		var id int
+		var data string
+		assert.Equal(t, true, rows.Next())
+		err = rows.Scan(&id, &data)
+		require.NoError(t, err)
+		assert.Equal(t, []interface{}{1, "Test"}, []interface{}{id, data})
+
+	})
+}

@@ -238,7 +238,10 @@ func (c *Connection) BeginTx(opts driver.TxOptions) (driver.Tx, error) {
 		return nil, errors.Join(errBeginTx, errReadOnlyTxNotSupported)
 	}
 
-	c.DirectUpdate("START TRANSACTION")
+	_, err := c.DirectUpdate("START TRANSACTION")
+	if err != nil {
+		return nil, errors.Join(errBeginTx, err)
+	}
 	c.tx = true
 	return &tx{c}, nil
 }
