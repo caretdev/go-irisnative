@@ -165,8 +165,18 @@ func (rs *ResultSet) fetchMoreData() (bool, error) {
 		return false, err
 	}
 
+	sqlCode := int16(msg.GetStatus())
+	if sqlCode != 0 && sqlCode != 100 {
+		msgStr, err := rs.c.getErrorInfo(sqlCode)
+		if err != nil {
+			return false, err
+		}
+		return false, &SQLError{SQLCode: sqlCode, Message: msgStr}
+	}
+
 	rs.data = msg.data
 	rs.offset = 0
+	rs.sqlCode = sqlCode
 	return len(msg.data) > 0, nil
 }
 
@@ -436,6 +446,25 @@ func writeParameters(msg *Message, args ...interface{}) {
 	}
 }
 
+func isUpdateQuery(sqlText string) bool {
+	// Normalize the SQL text to uppercase for keyword matching
+	upperSQL := strings.ToUpper(strings.TrimSpace(sqlText))
+
+	// Check for DDL/DML keywords that should use DirectUpdate
+	updateKeywords := []string{
+		"INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER",
+		"TRUNCATE", "GRANT", "REVOKE", "MERGE", "REPLACE",
+	}
+
+	for _, keyword := range updateKeywords {
+		if strings.HasPrefix(upperSQL, keyword) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (c *Connection) Query(sqlText string, args ...interface{}) (rs *ResultSet, err error) {
 	queries := strings.Split(sqlText, ";\n")
 	if len(queries) == 2 {
@@ -448,9 +477,23 @@ func (c *Connection) Query(sqlText string, args ...interface{}) (rs *ResultSet, 
 		sqlText = queries[1]
 		args = []interface{}{}
 	}
-	rs, err = c.DirectQuery(sqlText, args...)
-	if err != nil {
-		return
+
+	// Route to DirectUpdate for DDL/DML statements, DirectQuery for SELECT
+	if isUpdateQuery(sqlText) {
+		_, err = c.DirectUpdate(sqlText, args...)
+		if err != nil {
+			return
+		}
+		// For UPDATE queries, return a result set with sqlCode set
+		rs = &ResultSet{
+			c:       c,
+			sqlCode: 0,
+		}
+	} else {
+		rs, err = c.DirectQuery(sqlText, args...)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
