@@ -17,7 +17,13 @@ const timeLayoutShort = "2006-01-02 15:04:05"
 
 // DefaultMaxRowsPerFetch is the maximum number of rows to fetch in a single request.
 // This can be configured via the DSN parameter "max_rows".
-const DefaultMaxRowsPerFetch = 200
+// A value of 0 means no limit.
+const DefaultMaxRowsPerFetch = 0
+
+// DefaultQueryTimeout is the query timeout in seconds.
+// This can be configured via the DSN parameter "query_timeout".
+// A value of 0 means no timeout.
+const DefaultQueryTimeout = 0
 
 type StatementFeature struct {
 	featureOption   int
@@ -507,7 +513,7 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	msg.header.SetStatementId(statementId)
 	msg.SetSQLText(sqlText)
 	writeParameters(&msg, args...)
-	msg.Set(10)  // Query timeout
+	msg.Set(c.queryTimeout) // Query timeout
 	msg.Set(c.maxRowsPerFetch) // Max rows
 
 	_, err := c.conn.Write(msg.Dump(c.count()))

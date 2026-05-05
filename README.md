@@ -33,12 +33,17 @@ The driver accepts a URL-style DSN (recommended) or key=value pairs.
 **URL style**
 
 ```
-iris://user:password@host:1972/NAMESPACE?
+iris://user:password@host:1972/NAMESPACE?max_rows=200&query_timeout=30
 ```
 
 * `host` — IRIS hostname or IP
 * `1972` — superserver port (default)
 * `Namespace` — IRIS namespace (e.g., `USER`)
+
+**DSN parameters**
+
+* `max_rows` — Maximum number of rows to fetch in a single request (default: 0 = no limit)
+* `query_timeout` — Query timeout in seconds (default: 0 = no timeout)
 
 ---
 

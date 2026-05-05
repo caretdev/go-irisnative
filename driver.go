@@ -74,6 +74,15 @@ func (c *Connector) open(ctx context.Context) (cn *conn, err error) {
 		}
 	}
 
+	// Set queryTimeout if specified in DSN
+	if timeout, ok := o["query_timeout"]; ok {
+		var to int
+		_, err = fmt.Sscanf(timeout, "%d", &to)
+		if err == nil && to >= 0 {
+			cn.c.SetQueryTimeout(to)
+		}
+	}
+
 	return cn, nil
 }
 

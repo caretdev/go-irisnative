@@ -19,6 +19,7 @@ type Connection struct {
 	featureOptions  uint
 	tx              bool
 	maxRowsPerFetch int
+	queryTimeout    int
 }
 
 var (
@@ -43,6 +44,7 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 	connection = Connection{
 		conn:            conn,
 		maxRowsPerFetch: DefaultMaxRowsPerFetch,
+		queryTimeout:    DefaultQueryTimeout,
 	}
 
 	if err = connection.handshake(); err != nil {
@@ -61,6 +63,12 @@ func Connect(addr string, namespace, login, password string) (connection Connect
 func (c *Connection) SetMaxRowsPerFetch(rows int) {
 	if rows > 0 {
 		c.maxRowsPerFetch = rows
+	}
+}
+
+func (c *Connection) SetQueryTimeout(timeout int) {
+	if timeout >= 0 {
+		c.queryTimeout = timeout
 	}
 }
 
