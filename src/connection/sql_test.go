@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -35,6 +36,9 @@ func TestFromODBC(t *testing.T) {
 	assert.Equal(t, false, mustFromODBC(BIT, list.NewListItem(false)))
 	assert.Equal(t, true, mustFromODBC(BIT, list.NewListItem(true)))
 	assert.Equal(t, "test", mustFromODBC(VARCHAR, list.NewListItem("test")))
+	assert.Equal(t, float64(42.5), mustFromODBC(NUMERIC, list.NewListItem("42.5")))
+	assert.Equal(t, float64(42.5), mustFromODBC(DECIMAL, list.NewListItem("42.5")))
+	assert.Equal(t, float64(42.5), mustFromODBC(DOUBLE, list.NewListItem("42.5")))
 	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", mustFromODBC(GUID, list.NewListItem("550e8400-e29b-41d4-a716-446655440000")))
 	assert.Equal(t, nil, mustFromODBC(GUID, list.NewListItem(nil)))
 	assert.Equal(t, nil, mustFromODBC(GUID, list.NewListItem("")))
@@ -76,3 +80,38 @@ func TestFromODBC(t *testing.T) {
 	)
 }
 
+func TestRowsColumnTypeMetadata(t *testing.T) {
+	rows := &Rows{
+		rs: &ResultSet{
+			columns: []Column{
+				{name: "id", column_type: int(INTEGER), nullable: 0},
+				{name: "value", column_type: int(DOUBLE), precision: 15, scale: 2, nullable: 1},
+				{name: "created_at", column_type: int(TYPE_TIMESTAMP), nullable: 1},
+				{name: "name", column_type: int(VARCHAR), precision: 64, nullable: 2},
+			},
+		},
+	}
+
+	assert.Equal(t, "INTEGER", rows.ColumnTypeDatabaseTypeName(0))
+	assert.Equal(t, reflect.TypeOf(int64(0)), rows.ColumnTypeScanType(0))
+	nullable, ok := rows.ColumnTypeNullable(0)
+	assert.True(t, ok)
+	assert.False(t, nullable)
+
+	assert.Equal(t, "DOUBLE", rows.ColumnTypeDatabaseTypeName(1))
+	assert.Equal(t, reflect.TypeOf(float64(0)), rows.ColumnTypeScanType(1))
+	precision, scale, ok := rows.ColumnTypePrecisionScale(1)
+	assert.True(t, ok)
+	assert.Equal(t, int64(15), precision)
+	assert.Equal(t, int64(2), scale)
+
+	assert.Equal(t, "TIMESTAMP", rows.ColumnTypeDatabaseTypeName(2))
+	assert.Equal(t, reflect.TypeOf(time.Time{}), rows.ColumnTypeScanType(2))
+
+	length, ok := rows.ColumnTypeLength(3)
+	assert.True(t, ok)
+	assert.Equal(t, int64(64), length)
+	nullable, ok = rows.ColumnTypeNullable(3)
+	assert.False(t, ok)
+	assert.True(t, nullable)
+}

@@ -228,13 +228,13 @@ func fromODBC(coltype SQLTYPE, li list.ListItem) (result interface{}, err error)
 		var value bool
 		li.Get(&value)
 		result = value
-	case FLOAT:
+	case FLOAT, REAL:
 		var value float32
-		li.Get(&value)
+		err = li.Get(&value)
 		result = value
-	case DOUBLE:
+	case NUMERIC, DECIMAL, DOUBLE:
 		var value float64
-		li.Get(&value)
+		err = li.Get(&value)
 		result = value
 	case TIMESTAMP_POSIX:
 		if li.DataLength() == 0 {
@@ -513,7 +513,7 @@ func (c *Connection) DirectQuery(sqlText string, args ...interface{}) (*ResultSe
 	msg.header.SetStatementId(statementId)
 	msg.SetSQLText(sqlText)
 	writeParameters(&msg, args...)
-	msg.Set(c.queryTimeout) // Query timeout
+	msg.Set(c.queryTimeout)    // Query timeout
 	msg.Set(c.maxRowsPerFetch) // Max rows
 
 	_, err := c.conn.Write(msg.Dump(c.count()))

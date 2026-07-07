@@ -15,15 +15,15 @@ import (
 type ListItemType byte
 
 const (
-	LISTITEM_STRING     ListItemType = 0x01
-	LISTITEM_UNICODE    ListItemType = 0x02
-	LISTITEM_POSINT     ListItemType = 0x04
-	LISTITEM_NEGINT     ListItemType = 0x05
-	LISTITEM_POSDECIMAL ListItemType = 0x06
-	LISTITEM_NEGDECIMAL ListItemType = 0x07
+	LISTITEM_STRING       ListItemType = 0x01
+	LISTITEM_UNICODE      ListItemType = 0x02
+	LISTITEM_POSINT       ListItemType = 0x04
+	LISTITEM_NEGINT       ListItemType = 0x05
+	LISTITEM_POSDECIMAL   ListItemType = 0x06
+	LISTITEM_NEGDECIMAL   ListItemType = 0x07
 	LISTITEM_COMPACTFLOAT ListItemType = 0x08
 	LISTITEM_IEEEDOUBLE   ListItemType = 0x09
-	LISTITEM_OREF       ListItemType = 0x19
+	LISTITEM_OREF         ListItemType = 0x19
 )
 
 type ListItem struct {
@@ -412,12 +412,10 @@ func (li *ListItem) asFloat64() (value float64, err error) {
 	}
 	switch li.itemType {
 	case 1, 2:
-		var temp int
-		temp, err = strconv.Atoi(li.getString())
+		value, err = strconv.ParseFloat(li.getString(), 64)
 		if err != nil {
 			return
 		}
-		value = float64(temp)
 	case 4:
 		value = float64(getPosInt(li.data))
 	case 5:
@@ -427,26 +425,27 @@ func (li *ListItem) asFloat64() (value float64, err error) {
 	case 7:
 		value = getNegFloat(li.data)
 	case 8:
-		// Compact Float (IEEE 754 single-precision)
-		// Check for special IEEE values
 		if len(li.data) == 2 && li.data[0] == 0x80 {
 			if li.data[1] == 0x7F {
 				value = math.Inf(1) // Positive Infinity
 			} else if li.data[1] == 0xFF {
 				value = math.Inf(-1) // Negative Infinity
 			} else {
-				// Pad with zeros to 4 bytes if needed
-				data := make([]byte, 4)
-				copy(data, li.data)
-				bits := binary.LittleEndian.Uint32(data)
+				bits := uint32(binary.LittleEndian.Uint16(li.data)) << 16
 				value = float64(math.Float32frombits(bits))
 			}
 		} else {
-			// Pad with zeros to 4 bytes if needed
-			data := make([]byte, 4)
-			copy(data, li.data)
-			bits := binary.LittleEndian.Uint32(data)
-			value = float64(math.Float32frombits(bits))
+			switch len(li.data) {
+			case 8:
+				value = math.Float64frombits(binary.LittleEndian.Uint64(li.data))
+			case 4:
+				value = float64(math.Float32frombits(binary.LittleEndian.Uint32(li.data)))
+			case 2:
+				bits := uint32(binary.LittleEndian.Uint16(li.data)) << 16
+				value = float64(math.Float32frombits(bits))
+			default:
+				err = errors.New("invalid compact float data length")
+			}
 		}
 	case 9:
 		// IEEE Double (IEEE 754 double-precision)
