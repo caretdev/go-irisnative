@@ -143,6 +143,22 @@ func TestFloatListItem(t *testing.T) {
 		v, _ = li.asFloat64()
 		assert.InDelta(t, testVal, v, 0.0001)
 	}
+
+	li = ListItem{
+		size:     8,
+		itemType: LISTITEM_COMPACTFLOAT,
+		data:     []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x40, 0x45, 0x40},
+	}
+	v, _ = li.asFloat64()
+	assert.Equal(t, float64(42.5), v)
+
+	li = ListItem{
+		size:     2,
+		itemType: LISTITEM_COMPACTFLOAT,
+		data:     []byte{0x2a, 0x42},
+	}
+	v, _ = li.asFloat64()
+	assert.Equal(t, float64(42.5), v)
 }
 
 func TestBoolListItem(t *testing.T) {
@@ -216,4 +232,3 @@ func TestSpecialIEEEValues(t *testing.T) {
 	v, _ = li.asFloat64()
 	assert.True(t, math.IsNaN(v))
 }
-

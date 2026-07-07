@@ -208,6 +208,9 @@ func (c *Connection) connect(namespace, login, password string) (err error) {
 	msg.Get(&sqlEmptyString)
 	msg.Get(&serverFeatureOptions)
 	c.featureOptions = serverFeatureOptions
+
+	var previousListFormat int
+	err = c.ClassMethod("%SYSTEM.Process", "ListFormat", &previousListFormat, 0)
 	return
 }
 
